@@ -11,7 +11,7 @@ public class WTelegramBotClientOptions : TelegramBotClientOptions
     /// <summary>Your api_hash, obtained at https://my.telegram.org/apps</summary>
     public string ApiHash { get; }
     /// <summary>Connection to Database for loading/storing the bot state</summary>
-    public DbConnection DbConnection { get; }
+    public Func<string?, (DbConnection, string)> DbConnection { get; }
     /// <summary>You can set the SQL queries for your specific DB engine</summary>
     public string[] SqlCommands { get; set; }
     /// <summary>Optional MTProxy used</summary>
@@ -26,7 +26,7 @@ public class WTelegramBotClientOptions : TelegramBotClientOptions
     /// <param name="useTestEnvironment">Indicates that test environment will be used</param>
     /// <param name="mtproxy">Optional MTProxy URL to be used</param>
     /// <exception cref="ArgumentException">Thrown if <paramref name="token"/> format is invalid</exception>
-    public WTelegramBotClientOptions(string token, int apiId, string apiHash, DbConnection dbConnection, SqlCommands sqlCommands = WTelegram.SqlCommands.Detect, bool useTestEnvironment = false, string? mtproxy = null)
+    public WTelegramBotClientOptions(string token, int apiId, string apiHash, Func<string?, (DbConnection, string)> dbConnection, SqlCommands sqlCommands = WTelegram.SqlCommands.Detect, bool useTestEnvironment = false, string? mtproxy = null)
         : base(token, useTestEnvironment: useTestEnvironment)
     {
         ApiId = apiId;

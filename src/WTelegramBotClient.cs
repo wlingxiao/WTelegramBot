@@ -46,7 +46,7 @@ public partial class WTelegramBotClient(WTelegramBotClientOptions options, HttpC
     /// <param name="httpClient">A custom <see cref="HttpClient"/></param>
     /// <param name="cancellationToken">Global cancellation token</param>
     /// <exception cref="ArgumentException">Thrown if <paramref name="token"/> format is invalid</exception>
-    public WTelegramBotClient(string token, int apiId, string apiHash, DbConnection dbConnection, HttpClient? httpClient = null, CancellationToken cancellationToken = default) :
+    public WTelegramBotClient(string token, int apiId, string apiHash, Func<string?, (DbConnection, string)> dbConnection, HttpClient? httpClient = null, CancellationToken cancellationToken = default) :
         this(new WTelegramBotClientOptions(token, apiId, apiHash, dbConnection), httpClient, cancellationToken)
     { }
 

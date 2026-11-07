@@ -8,43 +8,62 @@ namespace WTelegram;
 
 internal partial class Database : IDisposable
 {
-	private readonly DbConnection _connection;
-	private readonly DbCommand[] _cmd = new DbCommand[DefaultSqlCommands[0].Length];
+	private readonly Func<string?, (DbConnection, string)> _connectionFactory;
+	private readonly string[] _cmd = new string[DefaultSqlCommands[0].Length];
 	private readonly Bot.State _state;
 
-	public Database(DbConnection connection, string[] sqlCommands, Bot.State state)
+	public Database(Func<string?, (DbConnection, string)> connectionFunc, string[] sqlCommands, Bot.State state)
 	{
+        _connectionFactory = connectionFunc;
 		if (sqlCommands.Length != DefaultSqlCommands[0].Length)
 			throw new ArgumentException($"Expected {DefaultSqlCommands[0].Length} SQL commands", nameof(sqlCommands));
-		_connection = connection;
 		_state = state;
 		for (int i = 0; i < sqlCommands.Length; i++)
 		{
-			var command = _cmd[i] = _connection.CreateCommand();
-			command.CommandText = sqlCommands[i];
-			string defCmd = DefaultSqlCommands[0][i];
-			for (int at = 0; (at = defCmd.IndexOf('@', at + 1)) > 0;)
-			{
-				var end = defCmd.IndexOfAny([',', ' ', ')', ';'], at + 1);
-				var param = command.CreateParameter();
-				param.ParameterName = defCmd[at..end];
-				if (!command.Parameters.Contains(param.ParameterName))
-					command.Parameters.Add(param);
-			}
+            _cmd[i] = sqlCommands[i];
 		}
-		connection.Open();
-		_cmd[DbSetup].ExecuteNonQuery();
+
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(DbSetup, cmd);
+        cmd.ExecuteNonQuery();
 	}
 
-	public void Dispose()
+    private DbConnection _connectionFunc()
+    {
+        return _connectionFactory(null).Item1;
+    }
+
+    public void InitCmd(int i, DbCommand command)
+    {
+        command.CommandText = _connectionFactory(_cmd[i]).Item2;
+        string defCmd = DefaultSqlCommands[0][i];
+        for (int at = 0; (at = defCmd.IndexOf('@', at + 1)) > 0;)
+        {
+            var end = defCmd.IndexOfAny([',', ' ', ')', ';'], at + 1);
+            var param = command.CreateParameter();
+            param.ParameterName = defCmd[at..end];
+            if (!command.Parameters.Contains(param.ParameterName))
+                command.Parameters.Add(param);
+        }
+    }
+
+    public void Dispose()
 	{
-		foreach (var cmd in _cmd) cmd.Dispose();
-		_connection.Dispose();
+		// foreach (var cmd in _cmd) cmd.Dispose();
+		// _connection.Dispose();
 	}
 
 	internal Stream LoadSessionState()
 	{
-		using (var reader = _cmd[LoadSession].ExecuteReader())
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(LoadSession, cmd);
+
+		//using (var reader = _cmd[LoadSession].ExecuteReader())
+        using (var reader = cmd.ExecuteReader())
 			if (reader.Read())
 			{
 				_state.SessionData = reader.GetValue(0) as byte[];
@@ -57,7 +76,13 @@ internal partial class Database : IDisposable
 	internal void SaveSessionState(byte[]? sessionData = null)
 	{
 		if (sessionData != null) _state.SessionData = sessionData;
-		var cmd = _cmd[SaveSession];
+		// var cmd = _cmd[SaveSession];
+
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(SaveSession, cmd);
+
 		cmd.Parameters[0].Value = _state.SessionData;
 		cmd.Parameters[1].Value = _state.LastUpdateId;
 		cmd.Parameters[2].Value = _state.AllowedUpdates;
@@ -104,7 +129,12 @@ internal partial class Database : IDisposable
 
 	internal IEnumerable<(int id, TL.Update update)> LoadTLUpdates()
 	{
-		using var reader = _cmd[LoadUpdates].ExecuteReader();
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(LoadUpdates, cmd);
+
+		using var reader = cmd.ExecuteReader();
 		while (reader.Read())
 			using (var breader = new BinaryReader(reader.GetStream(1)))
 				yield return (reader.GetInt32(0), (TL.Update)breader.ReadTLObject(0));
@@ -112,8 +142,20 @@ internal partial class Database : IDisposable
 
 	internal void SaveTLUpdates(IEnumerable<Update> updates)
 	{
-		_cmd[DelUpdates].ExecuteSave();
-		var cmd = _cmd[SaveUpdates];
+        {
+            using var conn1 = _connectionFunc();
+            conn1.Open();
+            using var cmd1 = conn1.CreateCommand();
+            InitCmd(DelUpdates, cmd1);
+            cmd1.ExecuteSave();
+        }
+
+        // _cmd[DelUpdates].ExecuteSave();
+		//var cmd = _cmd[SaveUpdates];
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(SaveUpdates, cmd);
 		using var memStream = new MemoryStream(1024);
 		foreach (var botUpdate in updates)
 		{
@@ -129,7 +171,13 @@ internal partial class Database : IDisposable
 
 	internal Dictionary<long, UpdateManager.MBoxState> LoadMBoxStates()
 	{
-		using var reader = _cmd[LoadMBox].ExecuteReader();
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(LoadMBox, cmd);
+
+        //using var reader = _cmd[LoadMBox].ExecuteReader();
+		using var reader = cmd.ExecuteReader();
 		var result = new Dictionary<long, UpdateManager.MBoxState>();
 		while (reader.Read())
 			result[reader.GetInt64(0)] = new() { pts = reader.GetInt32(1), access_hash = reader.GetInt64(2) };
@@ -138,7 +186,12 @@ internal partial class Database : IDisposable
 
 	internal void SaveMBoxStates(IReadOnlyDictionary<long, UpdateManager.MBoxState> state)
 	{
-		var cmd = _cmd[SaveMBox];
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(SaveMBox, cmd);
+
+		//var cmd = _cmd[SaveMBox];
 		foreach (var mboxState in state)
 		{
 			cmd.Parameters[0].Value = mboxState.Key;
@@ -147,7 +200,7 @@ internal partial class Database : IDisposable
 			cmd.ExecuteSave();
 		}
 	}
-	
+
 	internal void GetTables(out CachedTable<User> users, out CachedTable<Chat> chats)
 	{
 		users = new CachedTable<User>(DoLoadUser, DoSaveUser);
@@ -156,8 +209,15 @@ internal partial class Database : IDisposable
 
 	private User? DoLoadUser(long id)
 	{
-		_cmd[LoadUser].Parameters[0].Value = id;
-		using var reader = _cmd[LoadUser].ExecuteReader();
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(LoadUser, cmd);
+
+		//_cmd[LoadUser].Parameters[0].Value = id;
+        cmd.Parameters[0].Value = id;
+		//using var reader = _cmd[LoadUser].ExecuteReader();
+        using var reader = cmd.ExecuteReader();
 		if (!reader.Read()) return null;
 		var flags = reader.GetInt32(1);
 		return new User
@@ -178,7 +238,13 @@ internal partial class Database : IDisposable
 
 	private void DoSaveUser(User user)
 	{
-		var param = _cmd[SaveUser].Parameters;
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(SaveUser, cmd);
+
+		//var param = _cmd[SaveUser].Parameters;
+        var param = cmd.Parameters;
 		param[0].Value = user.Id;
 		param[1].Value = user.AccessHash;
 		param[2].Value = (user.IsBot ? 1 : 0) | (user.IsPremium ? 2 : 0) | (user.AddedToAttachmentMenu ? 4 : 0)
@@ -190,13 +256,21 @@ internal partial class Database : IDisposable
 		param[4].Value = user.LastName ?? "";
 		param[5].Value = user.Username ?? "";
 		param[6].Value = user.LanguageCode ?? "";
-		_cmd[SaveUser].ExecuteSave();
+		// _cmd[SaveUser].ExecuteSave();
+        cmd.ExecuteSave();
 	}
 
 	private Chat? DoLoadChat(long id)
 	{
-		_cmd[LoadChat].Parameters[0].Value = id;
-		using var reader = _cmd[LoadChat].ExecuteReader();
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(LoadChat, cmd);
+
+		//_cmd[LoadChat].Parameters[0].Value = id;
+		//using var reader = _cmd[LoadChat].ExecuteReader();
+        cmd.Parameters[0].Value = id;
+        using var reader = cmd.ExecuteReader();
 		if (!reader.Read()) return null;
 		var flags = reader.GetInt32(1);
 		var type = (ChatType)reader.GetInt32(5);
@@ -216,7 +290,13 @@ internal partial class Database : IDisposable
 
 	private void DoSaveChat(Chat chat)
 	{
-		var param = _cmd[SaveChat].Parameters;
+        using var conn = _connectionFunc();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        InitCmd(SaveChat, cmd);
+
+		// var param = _cmd[SaveChat].Parameters;
+        var param = cmd.Parameters;
 		param[0].Value = chat.Id;
 		param[1].Value = chat.AccessHash;
 		param[2].Value = chat.IsForum ? 1 : 0;
@@ -224,7 +304,8 @@ internal partial class Database : IDisposable
 		param[4].Value = chat.LastName ?? "";
 		param[5].Value = chat.Username ?? "";
 		param[6].Value = (int)chat.Type;
-		_cmd[SaveChat].ExecuteSave();
+		//_cmd[SaveChat].ExecuteSave();
+        cmd.ExecuteSave();
 	}
 
 	internal class CachedTable<T>(Func<long, T?> load, Action<T> save) where T : class

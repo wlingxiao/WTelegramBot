@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net6.0;net8.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -40,21 +39,9 @@ $(ReleaseNotes)</Description>
     <None Include="..\logo.png" Link="Data\logo.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)'=='net6.0' or '$(TargetFramework)'=='net8.0'">
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
-    <PackageReference Include="Nullable" Version="1.3.1" PrivateAssets="all" />
-    <PackageReference Include="Required" Version="1.0.0" PrivateAssets="all" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
-    <PackageReference Include="Required" Version="1.0.0" PrivateAssets="all" />
-  </ItemGroup>
-
   <ItemGroup>
-    <PackageReference Include="Telegram.Bot" Version="*" />
-    <PackageReference Include="WTelegramClient" Version="*" />
+    <PackageReference Include="Telegram.Bot" />
+    <PackageReference Include="WTelegramClient" />
   </ItemGroup>
+
 </Project>

@@ -67,7 +67,7 @@ public partial class Bot : IDisposable
 	/// <param name="apiHash">API hash (see https://my.telegram.org/apps)</param>
 	/// <param name="dbConnection">DB connection for storage and later resume</param>
 	/// <param name="sqlCommands">Template for SQL strings (auto-detect by default)</param>
-	public Bot(string botToken, int apiId, string apiHash, DbConnection dbConnection, SqlCommands sqlCommands = SqlCommands.Detect)
+	public Bot(string botToken, int apiId, string apiHash,  Func<string?, (DbConnection, string)> dbConnection, SqlCommands sqlCommands = SqlCommands.Detect)
 		: this(botToken, apiId, apiHash, dbConnection, null, sqlCommands) { }
 
 	/// <summary>Create a new <see cref="Bot"/> instance.</summary>
@@ -77,7 +77,7 @@ public partial class Bot : IDisposable
 	/// <param name="dbConnection">DB connection for storage and later resume</param>
 	/// <param name="httpClient">An <see cref="HttpClient"/>, or null for TCP mode</param>
 	/// <param name="sqlCommands">Template for SQL strings (auto-detect by default)</param>
-	public Bot(string botToken, int apiId, string apiHash, DbConnection dbConnection, HttpClient? httpClient, SqlCommands sqlCommands = SqlCommands.Detect)
+	public Bot(string botToken, int apiId, string apiHash,  Func<string?, (DbConnection, string)> dbConnection, HttpClient? httpClient, SqlCommands sqlCommands = SqlCommands.Detect)
 		: this(what => what switch
 		{
 			"api_id" => apiId.ToString(),
@@ -94,14 +94,14 @@ public partial class Bot : IDisposable
 	/// <param name="dbConnection">DB connection for storage and later resume</param>
 	/// <param name="sqlCommands">SQL queries for your specific DB engine (null for auto-detect)</param>
 	/// <param name="httpClient">An <see cref="HttpClient"/>, or null for TCP mode</param>
-	public Bot(Func<string, string?> configProvider, DbConnection dbConnection, string[]? sqlCommands = null, HttpClient? httpClient = null)
+	public Bot(Func<string, string?> configProvider,  Func<string?, (DbConnection, string)> dbConnection, string[]? sqlCommands = null, HttpClient? httpClient = null)
 	{
 		var botToken = configProvider("bot_token") ?? throw new ArgumentNullException(nameof(configProvider), "bot_token is unset");
 		BotId = long.Parse(botToken[0..botToken.IndexOf(':')]);
 		sqlCommands ??= Database.DefaultSqlCommands[(int)Database.DetectType(dbConnection)];
 		_collector = new(this);
 		var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-		Helpers.Log(1, $"WTelegramBot {version} using {dbConnection.GetType().Name} {dbConnection.DataSource}");
+		//Helpers.Log(1, $"WTelegramBot {version} using {dbConnection.GetType().Name} {dbConnection.DataSource}");
 		_database = new Database(dbConnection, sqlCommands, _state);
 		_database.GetTables(out _users, out _chats);
 		Client = new Client(configProvider, _database.LoadSessionState());

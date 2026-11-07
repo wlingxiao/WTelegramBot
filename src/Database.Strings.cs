@@ -77,12 +77,12 @@ internal partial class Database
 		["mysql"] = SqlCommands.MySQL,
 	};
 
-	internal static SqlCommands DetectType(DbConnection dbConnection)
+	internal static SqlCommands DetectType(Func<string?, (DbConnection, string)> dbConnection)
 	{
-		var type = dbConnection.GetType().FullName!;
+		/*var type = dbConnection.GetType().FullName!;
 		foreach (var mapping in DetectMapping)
 			if (type.IndexOf(mapping.Key, StringComparison.OrdinalIgnoreCase) >= 0)
-				return mapping.Value;
-		return 0;
+				return mapping.Value;*/
+		return SqlCommands.Postgresql;
 	}
 }
